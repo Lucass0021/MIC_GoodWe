@@ -1,33 +1,68 @@
-# Informações Adicionais - MIC
+# Informações Adicionais - MIC (Monitoramento de Consumo Inteligente)
 
-## Simulação do Projeto
+## Proposta do Projeto
 
-O aplicativo **MIC (Monitoramento de Consumo Inteligente)** realiza uma simulação de consumo de energia de diversos aparelhos domésticos.  
-Os dados são **mockados** (simulados) e incluem:
+O **MIC - Monitoramento de Consumo Inteligente** tem como proposta desenvolver um sistema capaz de **monitorar, analisar e recomendar melhorias no consumo de energia elétrica** de aparelhos domésticos.  
 
-- Tensão (Voltage) em volts (V)
-- Corrente (Current) em amperes (A)
-- Potência instantânea (Power) em watts (W)
-- Energia consumida (Energy) em kWh
-- Frequência (Frequency) em Hz
-- Fator de potência (PF)
+A ideia central é que o usuário consiga acompanhar em tempo real o desempenho dos dispositivos conectados, recebendo **alertas automáticos** sobre consumo elevado e **recomendações personalizadas** de economia, com apoio de Inteligência Artificial (Google Gemini).  
 
-Esses dados permitem ao Gemini gerar **alertas, recomendações e respostas às perguntas do usuário** sobre o consumo, mesmo sem conexão com dispositivos reais.  
+Assim, o projeto busca:
+- Tornar o consumo de energia mais transparente e compreensível.  
+- Auxiliar na redução de gastos com energia elétrica.  
+- Incentivar práticas de eficiência energética.  
+
+---
+
+## Como Funciona a Simulação
+
+O aplicativo em Streamlit utiliza um conjunto de **dados simulados (mock)** de dispositivos domésticos, que representam leituras típicas de:
+
+- Tensão (V)  
+- Corrente (A)  
+- Potência (W)  
+- Energia (kWh)  
+- Frequência (Hz)  
+- Fator de Potência (PF)  
+
+Esses dados alimentam dashboards interativos e servem como insumo para o modelo Gemini gerar **alertas e recomendações inteligentes**.
 
 ---
 
 ## Protótipo Wokwi
 
-Para simulação prática de dispositivos eletrônicos, você pode acessar o protótipo no Wokwi:
+Para simulação de cenários eletrônicos, foi criado um protótipo no Wokwi:  
 
-[🔗 Acessar protótipo Wokwi]((https://wokwi.com/projects/439836639430771713))
+[🔗 Acessar protótipo Wokwi](https://wokwi.com/projects/439836639430771713)
 
 ---
 
 ## Site Webhook
 
-O sistema pode ser integrado com serviços de notificação via Webhook. O link de referência é:
+O sistema também prevê integração com Webhooks para envio de notificações em tempo real:  
 
-[🔗 Acessar site Webhook]((https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426))
+[🔗 Acessar site Webhook](https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426)
 
 ---
+
+## O que já foi feito
+
+✅ Aplicativo em **Streamlit** para visualização de consumo.  
+✅ Criação de **mock de dados** representando aparelhos domésticos.  
+✅ Exibição de **KPIs e gráficos interativos** (tensão, corrente, potência, energia).  
+✅ Integração com **Google Gemini**, fornecendo alertas, recomendações e respostas a perguntas.  
+✅ Estruturação inicial da documentação (README e informações adicionais).  
+
+---
+
+## O que ainda falta ser desenvolvido
+
+🔲 Substituir os dados mockados por leituras reais dos dispositivos (integração com hardware).  
+🔲 Refinar a interface do usuário com recursos visuais (ícones, cores e alertas destacados).  
+🔲 Implementar sistema de **notificações automáticas via Webhook**.  
+🔲 Expandir a base de dados para incluir **mais dispositivos e cenários de consumo**.  
+🔲 Criar relatórios exportáveis (PDF, gráficos comparativos etc.).  
+🔲 Testes de desempenho e validação com usuários finais.  
+
+---
+
+> Esse documento será atualizado conforme o avanço do projeto.
