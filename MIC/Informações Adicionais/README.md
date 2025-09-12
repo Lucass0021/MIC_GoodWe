@@ -36,11 +36,11 @@ Para simulação de cenários eletrônicos, foi criado um protótipo no Wokwi:
 
 ---
 
-## Site Webhook
+## Site Firebase
 
-O sistema também prevê integração com Webhooks para envio de notificações em tempo real:  
+O sistema também prevê integração com Firebase para envio de notificações em tempo real:  
 
-[🔗 Acessar site Webhook](https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426)
+[🔗 Acessar site Firebase](https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426)
 
 ---
 
