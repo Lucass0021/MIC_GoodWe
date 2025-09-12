@@ -20,7 +20,7 @@ Esses dados permitem ao Gemini gerar **alertas, recomendações e respostas às 
 
 Para simulação prática de dispositivos eletrônicos, você pode acessar o protótipo no Wokwi:
 
-[🔗 Acessar protótipo Wokwi]([LINK_DO_PROTOTIPO](https://wokwi.com/projects/439836639430771713))
+[🔗 Acessar protótipo Wokwi]((https://wokwi.com/projects/439836639430771713))
 
 ---
 
@@ -28,6 +28,6 @@ Para simulação prática de dispositivos eletrônicos, você pode acessar o pro
 
 O sistema pode ser integrado com serviços de notificação via Webhook. O link de referência é:
 
-[🔗 Acessar site Webhook]([LINK_DO_SITE_WEBHOOK](https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426))
+[🔗 Acessar site Webhook]((https://webhook.site/#!/view/a79d11a0-3b79-4861-be86-6891f9c5c426))
 
 ---
