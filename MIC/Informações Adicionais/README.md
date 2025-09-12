@@ -1,4 +1,4 @@
-# Informações Adicionais - MIC (Monitoramento de Consumo Inteligente)
+# Informações Adicionais - MIC (Monitoramento Inteligente de Consumo)
 
 ## Proposta do Projeto
 
