@@ -1,6 +1,5 @@
-# app_mock_appliances_gemini_project_v5.py
+# app_mock_appliances_gemini_project_v6.py
 import os
-import time
 import requests
 import streamlit as st
 import pandas as pd
@@ -8,6 +7,7 @@ from datetime import date, datetime, timezone
 import plotly.express as px
 import google.generativeai as genai
 from dotenv import load_dotenv
+from streamlit_autorefresh import st_autorefresh
  
 # -------------------- Carregar .env --------------------
 load_dotenv()
@@ -25,11 +25,11 @@ FIREBASE_AUTH = os.getenv("FIREBASE_AUTH", "")  # opcional (idToken)
 MODELO_ESCOLHIDO = "gemini-1.5-flash"
 prompt_sistema = """
 Você é um assistente especializado em monitoramento de dispositivos elétricos domésticos.
-Seu objetivo é analisar dados de consumo de energia e fornecer respostas precisas, 
+Seu objetivo é analisar dados de consumo de energia e fornecer respostas precisas,
 breves e confiáveis sobre os dispositivos, como potência, energia consumida, corrente, tensão, etc.
 Forneça alertas e recomendações para economizar energia com base nos dados apresentados.
-Se a pergunta não puder ser respondida apenas com os dados fornecidos, você pode fornecer informações gerais baseadas em boas práticas ou conhecimento de mercado,
-indicando claramente quando a resposta é uma estimativa ou referência externa.
+Se a pergunta não puder ser respondida apenas com os dados fornecidos, você pode fornecer informações
+gerais baseadas em boas práticas ou conhecimento de mercado, indicando claramente quando a resposta é uma estimativa ou referência externa.
 """
 llm = genai.GenerativeModel(model_name=MODELO_ESCOLHIDO, system_instruction=prompt_sistema)
  
@@ -84,10 +84,29 @@ mock_data = [
     {"time": "2025-09-11T15:00:00", "Dispositivo": "Cafeteira", "Voltage": 127.7, "Current": 2.0, "Power": 250, "Energy": 0.07, "Frequency": 60.0, "PF": 0.9},
     {"time": "2025-09-11T16:00:00", "Dispositivo": "Ferro de passar", "Voltage": 127.9, "Current": 4.0, "Power": 500, "Energy": 0.15, "Frequency": 60.0, "PF": 0.9},
 ]
-df = pd.DataFrame(mock_data)
  
-# ---- Substitui SOMENTE o "Secador de cabelo" pelos dados de /tomada1 ----
+# -------------------- Streamlit UI --------------------
+st.set_page_config(page_title="GoodWe Assistant - Projeto de Aparelhos", layout="wide", page_icon="⚡")
+st.title("⚡ GoodWe Assistant — Projeto de Monitoramento de Aparelhos")
+st.caption("Visualização e recomendações de consumo de energia de dispositivos domésticos")
+ 
+# -------------------- Sidebar --------------------
+with st.sidebar:
+    st.header("Configurações")
+    data_ref = st.date_input("Data de referência", value=date.today())
+    st.info("O Gemini pode fornecer alertas, recomendações e responder perguntas sobre os dispositivos.")
+    auto_refresh = st.checkbox("Atualizar automaticamente (5s)", value=True)
+    if st.button("🔄 Atualizar agora"):
+        st.experimental_rerun()  # botão manual
+ 
+# -------------------- Auto-refresh --------------------
+if auto_refresh:
+    # Atualiza automaticamente a cada 5 segundos
+    st_autorefresh(interval=5000, key="datarefresh")
+ 
+# -------------------- Preparar DataFrame --------------------
 tomada1 = fetch_tomada1()
+df = pd.DataFrame(mock_data)
 if tomada1:
     df.loc[df["Dispositivo"] == "Secador de cabelo", ["time","Voltage","Current","Power","Energy","Frequency","PF"]] = [
         pd.to_datetime(tomada1["time"]),
@@ -99,28 +118,7 @@ if tomada1:
         tomada1["PF"],
     ]
 else:
-    # mantém mock caso Firebase indisponível
     df["time"] = pd.to_datetime(df["time"])
- 
-# -------------------- Streamlit UI --------------------
-st.set_page_config(page_title="GoodWe Assistant - Projeto de Aparelhos", layout="wide", page_icon="⚡")
-st.title("⚡ GoodWe Assistant — Projeto de Monitoramento de Aparelhos")
-st.caption("Visualização e recomendações de consumo de energia de dispositivos domésticos")
- 
-with st.sidebar:
-    st.header("Configurações")
-    data_ref = st.date_input("Data de referência", value=date.today())
-    st.info("O Gemini pode fornecer alertas, recomendações e responder perguntas sobre os dispositivos.")
-    # Auto refresh (se disponível)
-    try:
-        from streamlit_autorefresh import st_autorefresh
-        refresh = st.toggle("Atualizar automaticamente (5s)", value=True)
-        if refresh:
-            st_autorefresh(interval=5000, key="firebase_poll")
-    except Exception:
-        st.caption("Dica: instale `streamlit-autorefresh` para autoatualizar.")
-    if st.button("🔄 Atualizar agora"):
-        st.experimental_rerun()
  
 # -------------------- KPIs gerais --------------------
 col1, col2, col3, col4 = st.columns(4)
