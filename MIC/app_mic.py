@@ -101,7 +101,28 @@ if tomada1:
 else:
     # mantém mock caso Firebase indisponível
     df["time"] = pd.to_datetime(df["time"])
- 
+
+# --- Adição para carregar dados existentes do Excel e anexar ---
+EXCEL_FILE_NAME = "dados_consumo_mic.xlsx"
+
+# Tenta carregar dados existentes do Excel, se o arquivo existir
+if os.path.exists(EXCEL_FILE_NAME):
+    try:
+        df_existing = pd.read_excel(EXCEL_FILE_NAME)
+        # Converte a coluna 'time' para datetime, se necessário
+        df_existing['time'] = pd.to_datetime(df_existing['time'])
+        # Anexa os novos dados (df) aos dados existentes
+        # Remove duplicatas baseadas em 'time' e 'Dispositivo' para evitar entradas idênticas
+        df = pd.concat([df_existing, df]).drop_duplicates(subset=['time', 'Dispositivo']).reset_index(drop=True)
+        st.sidebar.success(f"Dados carregados de {EXCEL_FILE_NAME} e atualizados.")
+    except Exception as e:
+        st.sidebar.warning(f"Não foi possível carregar dados de {EXCEL_FILE_NAME}: {e}. Usando apenas dados atuais.")
+        # Garante que 'time' seja datetime mesmo se o Excel não for carregado
+        df["time"] = pd.to_datetime(df["time"])
+else:
+    st.sidebar.info(f"Arquivo {EXCEL_FILE_NAME} não encontrado. Criando um novo.")
+    df["time"] = pd.to_datetime(df["time"])
+
 # -------------------- Streamlit UI --------------------
 st.set_page_config(page_title="GoodWe Assistant - Projeto de Aparelhos", layout="wide", page_icon="⚡")
 st.title("⚡ GoodWe Assistant — Projeto de Monitoramento de Aparelhos")
@@ -121,6 +142,14 @@ with st.sidebar:
         st.caption("Dica: instale `streamlit-autorefresh` para autoatualizar.")
     if st.button("🔄 Atualizar agora"):
         st.experimental_rerun()
+
+    # Botão para salvar no Excel
+    if st.button("💾 Salvar dados no Excel"):
+        try:
+            df.to_excel(EXCEL_FILE_NAME, index=False)
+            st.sidebar.success(f"Dados salvos com sucesso em {EXCEL_FILE_NAME}!")
+        except Exception as e:
+            st.sidebar.error(f"Erro ao salvar dados no Excel: {e}")
  
 # -------------------- KPIs gerais --------------------
 col1, col2, col3, col4 = st.columns(4)
@@ -186,3 +215,4 @@ if st.button("Enviar pergunta") and user_input:
         st.markdown(f"**Resposta do Gemini:** {resposta.text}")
     except Exception as e:
         st.error(f"Erro ao processar a pergunta: {e}")
+
