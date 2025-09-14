@@ -40,7 +40,7 @@ Para simulação de cenários eletrônicos, foi criado um protótipo no Wokwi:
 
 O sistema também prevê integração com Firebase para envio de notificações em tempo real:  
 
-[🔗 Acessar site Firebase](https://console.firebase.google.com/project/mic-9d88e/database/mic-9d88e-default-rtdb/data?hl=pt-br)
+[🔗 Acessar site Firebase](https://wokwi.com/projects/442107050312564737)
 
 ---
 
