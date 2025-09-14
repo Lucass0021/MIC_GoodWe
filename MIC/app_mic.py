@@ -1,3 +1,4 @@
+# app_goodwe_assistant_refatorado_corrigido.py
 import os
 import requests
 import streamlit as st
@@ -38,10 +39,7 @@ def fetch_tomada(tomada: str):
         if not isinstance(data, dict):
             return None
         ts = data.get("ts")
-        if isinstance(ts, (int, float)):
-            t = datetime.fromtimestamp(ts, tz=timezone.utc)
-        else:
-            t = datetime.now(timezone.utc)
+        t = datetime.fromtimestamp(ts, tz=timezone.utc) if isinstance(ts, (int,float)) else datetime.now(timezone.utc)
         return {
             "time": t.isoformat(),
             "Voltage": float(data.get("Voltage", 127.8)),
@@ -67,57 +65,60 @@ indicando claramente quando a resposta é uma estimativa ou referência externa.
 """
 llm = genai.GenerativeModel(model_name=MODELO_ESCOLHIDO, system_instruction=prompt_sistema)
 
-# -------------------- Mock inicial --------------------
-mock_data = [
-    {"time": "2025-09-14T08:00:00", "Dispositivo": "Secador de cabelo", "Voltage": 220, "Current": 7.6, "Power": 1674, "Energy": 0.47, "Frequency": 60.0, "PF": 1},
-    {"time": "2025-09-14T09:00:00", "Dispositivo": "Laptop", "Voltage": 220, "Current": 2.2, "Power": 502, "Energy": 0.14, "Frequency": 60.0, "PF": 1},
-    {"time": "2025-09-14T10:00:00", "Dispositivo": "Geladeira", "Voltage": 220, "Current": 0.8, "Power": 176, "Energy": 0.23, "Frequency": 60.0, "PF": 1},
-    {"time": "2025-09-14T11:00:00", "Dispositivo": "Televisão", "Voltage": 220, "Current": 1.1, "Power": 251, "Energy": 0.42, "Frequency": 60.0, "PF": 1},
-    {"time": "2025-09-14T12:00:00", "Dispositivo": "Micro-ondas", "Voltage": 220, "Current": 5.0, "Power": 1000, "Energy": 0.20, "Frequency": 60.0, "PF": 0.9},
-    {"time": "2025-09-14T13:00:00", "Dispositivo": "Ventilador", "Voltage": 220, "Current": 0.3, "Power": 35, "Energy": 0.02, "Frequency": 60.0, "PF": 0.95},
-    {"time": "2025-09-14T14:00:00", "Dispositivo": "Ar-condicionado", "Voltage": 220, "Current": 3.5, "Power": 770, "Energy": 0.25, "Frequency": 60.0, "PF": 0.88},
-    {"time": "2025-09-14T15:00:00", "Dispositivo": "Cafeteira", "Voltage": 220, "Current": 2.0, "Power": 250, "Energy": 0.07, "Frequency": 60.0, "PF": 0.9},
-    {"time": "2025-09-14T16:00:00", "Dispositivo": "Ferro de passar", "Voltage": 220, "Current": 4.0, "Power": 500, "Energy": 0.15, "Frequency": 60.0, "PF": 0.9},
-]
-df = pd.DataFrame(mock_data)
-df["time"] = pd.to_datetime(df["time"], errors="coerce")
+# -------------------- Funções auxiliares --------------------
+def atualizar_dados():
+    # Mock inicial
+    mock_data = [
+        {"time": "2025-09-14T08:00:00", "Dispositivo": "Secador de cabelo", "Voltage": 220, "Current": 7.6, "Power": 1674, "Energy": 0.47, "Frequency": 60.0, "PF": 1},
+        {"time": "2025-09-14T09:00:00", "Dispositivo": "Laptop", "Voltage": 220, "Current": 2.2, "Power": 502, "Energy": 0.14, "Frequency": 60.0, "PF": 1},
+        {"time": "2025-09-14T10:00:00", "Dispositivo": "Geladeira", "Voltage": 220, "Current": 0.8, "Power": 176, "Energy": 0.23, "Frequency": 60.0, "PF": 1},
+        {"time": "2025-09-14T11:00:00", "Dispositivo": "Televisão", "Voltage": 220, "Current": 1.1, "Power": 251, "Energy": 0.42, "Frequency": 60.0, "PF": 1},
+    ]
+    df_local = pd.DataFrame(mock_data)
+    df_local["time"] = pd.to_datetime(df_local["time"], errors="coerce")
+    
+    # Atualiza com Firebase
+    tomadas = ["tomada1", "tomada2", "tomada3", "tomada4"]
+    nomes_dispositivos = ["Secador de cabelo", "Laptop", "Geladeira", "Televisão"]
+    for tomada, nome in zip(tomadas, nomes_dispositivos):
+        data = fetch_tomada(tomada)
+        if data:
+            mask = df_local["Dispositivo"].str.lower() == nome.lower()
+            df_local.loc[mask, ["time","Voltage","Current","Power","Energy","Frequency","PF"]] = [
+                pd.to_datetime(data["time"]),
+                float(data["Voltage"]),
+                float(data["Current"]),
+                float(data["Power"]),
+                float(data["Energy"]),
+                float(data["Frequency"]),
+                float(data["PF"]),
+            ]
+    
+    # Carrega histórico Excel
+    EXCEL_FILE_NAME = "dados_consumo_mic.xlsx"
+    if os.path.exists(EXCEL_FILE_NAME):
+        try:
+            df_existing = pd.read_excel(EXCEL_FILE_NAME)
+            df_existing["time"] = pd.to_datetime(df_existing["time"], errors="coerce")
+            df_local = pd.concat([df_existing, df_local]).drop_duplicates(subset=["time", "Dispositivo"]).reset_index(drop=True)
+        except:
+            pass
+    
+    return df_local
 
-# -------------------- Atualiza com Firebase --------------------
-tomadas = ["tomada1", "tomada2", "tomada3", "tomada4"]
-nomes_dispositivos = ["Secador de cabelo", "Laptop", "Geladeira", "Televisão"]
-
-for tomada, nome in zip(tomadas, nomes_dispositivos):
-    data = fetch_tomada(tomada)
-    if data:
-        mask = df["Dispositivo"].str.lower() == nome.lower()
-        df.loc[mask, ["time","Voltage","Current","Power","Energy","Frequency","PF"]] = [
-            pd.to_datetime(data["time"]),
-            float(data["Voltage"]),
-            float(data["Current"]),
-            float(data["Power"]),
-            float(data["Energy"]),
-            float(data["Frequency"]),
-            float(data["PF"]),
-        ]
-
-# -------------------- Histórico em Excel --------------------
-EXCEL_FILE_NAME = "dados_consumo_mic.xlsx"
-if os.path.exists(EXCEL_FILE_NAME):
-    try:
-        df_existing = pd.read_excel(EXCEL_FILE_NAME)
-        df_existing["time"] = pd.to_datetime(df_existing["time"], errors="coerce")
-        df = pd.concat([df_existing, df]).drop_duplicates(subset=["time", "Dispositivo"]).reset_index(drop=True)
-        st.sidebar.success(f"Dados carregados de {EXCEL_FILE_NAME}")
-    except Exception as e:
-        st.sidebar.warning(f"Erro ao carregar histórico: {e}")
-else:
-    st.sidebar.info("Arquivo histórico não encontrado. Um novo será criado.")
+def gerar_contexto_resumido(df_input):
+    # Apenas seleciona colunas essenciais para enviar ao LLM
+    return df_input[["Dispositivo","Voltage","Current","Power","Energy","PF"]].to_dict(orient="records")
 
 # -------------------- Streamlit UI --------------------
-st.set_page_config(page_title="GoodWe Assistant - Projeto de Aparelhos", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="GoodWe Assistant", layout="wide", page_icon="⚡")
 st.title("⚡ GoodWe Assistant — Projeto de Monitoramento de Aparelhos")
 st.caption("Visualização e recomendações de consumo de energia de dispositivos domésticos")
 
+# Atualiza dados a cada refresh
+df = atualizar_dados()
+
+# -------------------- Sidebar --------------------
 with st.sidebar:
     st.header("Configurações")
     data_ref = st.date_input("Data de referência", value=date.today())
@@ -126,11 +127,16 @@ with st.sidebar:
         st_autorefresh(interval=5000, key="datarefresh")
     if st.button("💾 Salvar no Excel"):
         try:
-            df.to_excel(EXCEL_FILE_NAME, index=False)
-            st.sidebar.success(f"Dados salvos em {EXCEL_FILE_NAME}")
+            df.to_excel("dados_consumo_mic.xlsx", index=False)
+            st.sidebar.success("Dados salvos com sucesso!")
         except Exception as e:
             st.sidebar.error(f"Erro ao salvar: {e}")
-    st.download_button("⬇ Baixar CSV", df.to_csv(index=False).encode("utf-8"), f"goodwe_{date.today()}.csv", "text/csv")
+    st.download_button(
+        "⬇ Baixar CSV",
+        df.to_csv(index=False).encode("utf-8"),
+        f"goodwe_{date.today()}.csv",
+        "text/csv"
+    )
 
 # -------------------- KPIs --------------------
 col1, col2, col3, col4 = st.columns(4)
@@ -139,12 +145,12 @@ col2.metric("Corrente total (A)", f"{df['Current'].sum():.2f}")
 col3.metric("Potência total (W)", f"{df['Power'].sum():.2f}")
 col4.metric("Energia total (kWh)", f"{df['Energy'].sum():.3f}")
 
-# -------------------- Gráficos por dispositivo --------------------
+# -------------------- Gráficos --------------------
 left, right = st.columns(2)
 with left:
-    st.plotly_chart(px.bar(df, x="Dispositivo", y="Power", color="Dispositivo", title="Potência (W)"), width="stretch")
+    st.plotly_chart(px.bar(df, x="Dispositivo", y="Power", color="Dispositivo", title="Potência (W)"), use_container_width=True)
 with right:
-    st.plotly_chart(px.bar(df, x="Dispositivo", y="Energy", color="Dispositivo", title="Energia (kWh)"), width="stretch")
+    st.plotly_chart(px.bar(df, x="Dispositivo", y="Energy", color="Dispositivo", title="Energia (kWh)"), use_container_width=True)
 
 # -------------------- Tabela --------------------
 with st.expander("📊 Ver tabela completa"):
@@ -157,15 +163,14 @@ with st.expander("📊 Ver tabela completa"):
 st.markdown("---")
 st.header("💬 Alertas e recomendações do Gemini")
 if st.button("Gerar alertas e recomendações"):
-    contexto = df.to_dict(orient="records")
+    contexto = gerar_contexto_resumido(df)
     prompt = f"Analise os dispositivos:\n{contexto}\n\nForneça alertas e recomendações para economizar energia."
     resposta = llm.generate_content(prompt)
-
+    
     tts = gTTS(resposta.text, lang="pt")
-    audio_bytes = io.BytesIO()
-    tts.write_to_fp(audio_bytes)
-
-    st.audio(audio_bytes, format="audio/mp3")
+    audio_buffer = io.BytesIO()
+    tts.write_to_fp(audio_buffer)
+    st.audio(audio_buffer, format="audio/mp3")
     st.markdown(f"**Alertas e recomendações:** {resposta.text}")
 
 # -------------------- Gemini: Perguntas Texto/Voz --------------------
@@ -180,38 +185,39 @@ with col_audio:
 
 pergunta_usuario = None
 if audio_bytes:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        temp_audio.write(audio_bytes)
-        audio_path = temp_audio.name
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_path) as source:
-        audio_data = recognizer.record(source)
-        pergunta_usuario = recognizer.recognize_google(audio_data, language="pt-BR")
-    st.write(f"**Você disse:** {pergunta_usuario}")
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            temp_audio.write(audio_bytes)
+            audio_path = temp_audio.name
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(audio_path) as source:
+            audio_data = recognizer.record(source)
+            pergunta_usuario = recognizer.recognize_google(audio_data, language="pt-BR")
+        st.write(f"**Você disse:** {pergunta_usuario}")
+    except Exception as e:
+        st.warning(f"Não foi possível reconhecer o áudio: {e}")
 elif pergunta_texto:
     pergunta_usuario = pergunta_texto
     st.write(f"**Você escreveu:** {pergunta_usuario}")
 
 if pergunta_usuario:
-    contexto = df.to_dict(orient="records")
+    contexto = gerar_contexto_resumido(df)
     prompt = f"Considere os dispositivos:\n{contexto}\n\nPergunta: {pergunta_usuario}"
     resposta = llm.generate_content(prompt)
 
     tts = gTTS(resposta.text, lang="pt")
     audio_out = io.BytesIO()
     tts.write_to_fp(audio_out)
-
     st.audio(audio_out, format="audio/mp3")
     st.markdown(f"**Resposta do Gemini:** {resposta.text}")
 
-# -------------------- Gráfico histórico geral com mock (30 dias) --------------------
+# -------------------- Gráfico histórico (mock 30 dias) --------------------
 st.markdown("---")
 st.header("📈 Histórico geral de energia consumida (últimos 30 dias)")
 
 dispositivos = df['Dispositivo'].unique()
 dias = pd.date_range(start=date.today().replace(day=1), periods=30)
 
-# Criar DataFrame histórico mockado
 df_historico = pd.DataFrame()
 for disp in dispositivos:
     energia_mock = np.random.uniform(low=0.05, high=0.5, size=len(dias))
@@ -236,7 +242,7 @@ fig_hist.update_layout(
 )
 st.plotly_chart(fig_hist, use_container_width=True)
 
-# -------------------- Explicação das métricas (FINAL) --------------------
+# -------------------- Explicação das métricas --------------------
 st.markdown("---")
 with st.expander("ℹ️ O que são estas informações?"):
     st.markdown("""
