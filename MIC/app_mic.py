@@ -1,4 +1,3 @@
-# app_goodwe_assistant_refatorado_corrigido.py
 import os
 import requests
 import streamlit as st
