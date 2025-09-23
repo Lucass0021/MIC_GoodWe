@@ -1,4 +1,7 @@
 # MIC - Monitoramento Inteligente de Consumo
+
+<img width="820" height="122" alt="idveEmfU_Y-2666006869" src="https://github.com/user-attachments/assets/82e8f14e-74f2-4a38-b28a-44959f0823cd" />
+
 **GoodWe**
 
 Este projeto implementa um **agente de recomendação de consumo elétrico** utilizando a API **Google AI (Gemini)** em Python e Streamlit.  
