@@ -30,7 +30,7 @@ cd MIC
 2. Crie e ative um ambiente virtual:
 ```bash
 python -m venv .venv
-source .venv\bin\activate # Linux/Mac
+source .venv/bin/activate # Linux/Mac
 .venv\Scripts\Activate # Windows
 ```
 3. Instale as dependências:
