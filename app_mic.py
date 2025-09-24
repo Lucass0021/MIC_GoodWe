@@ -24,6 +24,10 @@ if GEN_API_KEY:
 FIREBASE_DB_URL = os.getenv("FIREBASE_DB_URL", "https://mic-9d88e-default-rtdb.firebaseio.com").rstrip("/")
 FIREBASE_AUTH = os.getenv("FIREBASE_AUTH", "")
 
+# -------------------- Inicialização da sessão --------------------
+if 'df_devices' not in st.session_state:
+    st.session_state.df_devices = pd.DataFrame()
+
 # -------------------- Firebase --------------------
 def firebase_get(path: str):
     url = f"{FIREBASE_DB_URL}/{path.lstrip('/')}.json"
@@ -120,7 +124,7 @@ def get_pending_device_calls():
         st.warning(f"Não foi possível buscar chamados de dispositivos: {e}")
         return []
 
-# -------------------- Função register_new_device --------------------
+# -------------------- Registro e atualização de dispositivos --------------------
 def register_new_device(device_id, nome_aparelho, prioridade, nome_conectado, modelo_dispositivo):
     new_device_data = {
         "Device_ID": device_id,
@@ -137,83 +141,59 @@ def register_new_device(device_id, nome_aparelho, prioridade, nome_conectado, mo
         "PF": 0.0,
     }
 
-    if 'df_devices' not in st.session_state or st.session_state.df_devices.empty:
-        st.session_state.df_devices = pd.DataFrame(columns=[
-            "Device_ID", "Dispositivo", "Prioridade", "Nome_Conectado", "Modelo_Dispositivo",
-            "time", "Voltage", "Current", "Power", "Energy", "Frequency", "PF"
-        ])
+    if st.session_state.df_devices.empty:
+        st.session_state.df_devices = pd.DataFrame(columns=list(new_device_data.keys()))
 
     if device_id not in st.session_state.df_devices['Device_ID'].values:
         st.session_state.df_devices = pd.concat([st.session_state.df_devices, pd.DataFrame([new_device_data])], ignore_index=True)
     else:
-        st.warning(f"Dispositivo com ID {device_id} já está registrado. Atualizando informações.")
-        idx = st.session_state.df_devices[st.session_state.df_devices['Device_ID'] == device_id].index[0]
+        idx = st.session_state.df_devices[st.session_state.df_devices['Device_ID']==device_id].index[0]
         for key, value in new_device_data.items():
             if key != "Device_ID":
                 st.session_state.df_devices.loc[idx, key] = value
 
+    # Salvar Excel
     try:
         st.session_state.df_devices.to_excel("dados_consumo_mic.xlsx", index=False)
-        st.success(f"✅ Dispositivo '{nome_aparelho}' (ID: {device_id}) registrado/atualizado e salvo no Excel!")
+        st.success(f"✅ Dispositivo '{nome_aparelho}' registrado/atualizado e salvo no Excel!")
         try:
             firebase_put(f"/device_calls/{device_id}", None)
         except Exception as e:
             st.warning(f"Não foi possível remover o chamado no Firebase: {e}")
         try:
             firebase_post(f"/historico/{device_id}", new_device_data)
-            st.info(f"📊 Histórico atualizado no Firebase para o dispositivo '{nome_aparelho}'!")
         except Exception as e:
             st.warning(f"Não foi possível salvar no histórico do Firebase: {e}")
+        
+        # Atualizar dados imediatamente
+        st.session_state.df_devices = atualizar_dados()
+        st.rerun()
+        
     except Exception as e:
-        st.error(f"Erro ao salvar o novo dispositivo no Excel: {e}")
+        st.error(f"Erro ao salvar dispositivo no Excel: {e}")
 
-# -------------------- Registro manual de dispositivos --------------------
-with st.sidebar.expander("🛠️ Registrar dispositivo manualmente"):
-    device_id_manual = st.text_input("ID do dispositivo (manual)")
-    nome_aparelho_manual = st.text_input("Nome do Aparelho (manual)")
-    prioridade_manual = st.selectbox("Ordem de Prioridade (manual)", ["Máxima", "Moderada", "Mínima"], key="prioridade_manual")
-    nome_conectado_manual = st.text_input("Nome do Dispositivo Conectado (manual)")
-    modelo_dispositivo_manual = st.text_input("Modelo do Dispositivo (manual)")
-
-    if st.button("Registrar Manualmente"):
-        if device_id_manual and nome_aparelho_manual:
-            try:
-                register_new_device(
-                    device_id=device_id_manual,
-                    nome_aparelho=nome_aparelho_manual,
-                    prioridade=prioridade_manual,
-                    nome_conectado=nome_conectado_manual,
-                    modelo_dispositivo=modelo_dispositivo_manual
-                )
-                st.success(f"Dispositivo '{nome_aparelho_manual}' registrado manualmente com sucesso!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao registrar dispositivo manualmente: {e}")
-        else:
-            st.error("ID e Nome do aparelho são obrigatórios para registro manual.")
-
-# -------------------- atualizar_dados --------------------
 def atualizar_dados():
     df_local = pd.DataFrame()
     EXCEL_FILE_NAME = "dados_consumo_mic.xlsx"
+
     if os.path.exists(EXCEL_FILE_NAME):
         try:
             df_registered = pd.read_excel(EXCEL_FILE_NAME)
-            for col in ["Voltage", "Current", "Power", "Energy", "Frequency", "PF"]:
+            for col in ["Voltage","Current","Power","Energy","Frequency","PF"]:
                 if col in df_registered.columns:
                     df_registered[col] = pd.to_numeric(df_registered[col], errors='coerce').fillna(0.0)
             df_registered["time"] = pd.to_datetime(df_registered["time"], errors="coerce")
             df_local = df_registered.copy()
         except Exception as e:
-            st.warning(f"Erro ao carregar dados do Excel: {e}. Iniciando com DataFrame vazio.")
+            st.warning(f"Erro ao carregar dados do Excel: {e}")
             df_local = pd.DataFrame(columns=[
-                "Device_ID", "Dispositivo", "Prioridade", "Nome_Conectado", "Modelo_Dispositivo",
-                "time", "Voltage", "Current", "Power", "Energy", "Frequency", "PF"
+                "Device_ID","Dispositivo","Prioridade","Nome_Conectado","Modelo_Dispositivo",
+                "time","Voltage","Current","Power","Energy","Frequency","PF"
             ])
     else:
         df_local = pd.DataFrame(columns=[
-            "Device_ID", "Dispositivo", "Prioridade", "Nome_Conectado", "Modelo_Dispositivo",
-            "time", "Voltage", "Current", "Power", "Energy", "Frequency", "PF"
+            "Device_ID","Dispositivo","Prioridade","Nome_Conectado","Modelo_Dispositivo",
+            "time","Voltage","Current","Power","Energy","Frequency","PF"
         ])
 
     updated_rows = []
@@ -230,6 +210,7 @@ def atualizar_dados():
                 row["Frequency"] = float(firebase_data["Frequency"])
                 row["PF"] = float(firebase_data["PF"])
         updated_rows.append(row)
+
     df_local = pd.DataFrame(updated_rows)
 
     if df_local.empty:
@@ -239,15 +220,13 @@ def atualizar_dados():
             {"time": "2025-09-14T10:00:00", "Dispositivo": "Geladeira", "Voltage": 220, "Current": 0.8, "Power": 176, "Energy": 0.23, "Frequency": 60.0, "PF": 1, "Device_ID": "mock_geladeira", "Prioridade": "Máxima", "Nome_Conectado": "", "Modelo_Dispositivo": ""},
             {"time": "2025-09-14T11:00:00", "Dispositivo": "Televisão", "Voltage": 220, "Current": 1.1, "Power": 251, "Energy": 0.42, "Frequency": 60.0, "PF": 1, "Device_ID": "mock_televisao", "Prioridade": "Moderada", "Nome_Conectado": "", "Modelo_Dispositivo": ""},
         ]
-        df_local = pd.concat([df_local, pd.DataFrame(mock_data)], ignore_index=True)
+        df_local = pd.DataFrame(mock_data)
         df_local["time"] = pd.to_datetime(df_local["time"], errors="coerce")
 
-    st.session_state.df_devices = df_local.copy()
     return df_local
 
-# -------------------- Gerar contexto resumido --------------------
 def gerar_contexto_resumido(df_input):
-    cols = ["Dispositivo","Voltage","Current","Power","Energy","PF", "Prioridade", "Nome_Conectado", "Modelo_Dispositivo"]
+    cols = ["Dispositivo","Voltage","Current","Power","Energy","PF","Prioridade","Nome_Conectado","Modelo_Dispositivo"]
     existing_cols = [c for c in cols if c in df_input.columns]
     return df_input[existing_cols].to_dict(orient="records")
 
@@ -256,10 +235,11 @@ st.set_page_config(page_title="GoodWe Assistant", layout="wide", page_icon="⚡"
 st.title("⚡ GoodWe Assistant — Projeto de Monitoramento de Aparelhos")
 st.caption("Visualização e recomendações de consumo de energia de dispositivos domésticos")
 
-if 'df_devices' not in st.session_state:
-    st.session_state.df_devices = pd.DataFrame()
+# Atualiza dados apenas se necessário
+if st.session_state.df_devices.empty:
+    st.session_state.df_devices = atualizar_dados()
 
-df = atualizar_dados()
+df = st.session_state.df_devices.copy()
 
 # -------------------- Sidebar --------------------
 with st.sidebar:
@@ -268,62 +248,89 @@ with st.sidebar:
     auto_refresh = st.checkbox("Atualizar automaticamente (5s)", value=True)
     if auto_refresh:
         st_autorefresh(interval=5000, key="datarefresh")
+    
+    # Botão de salvar - com verificação de segurança
     if st.button("💾 Salvar no Excel"):
-        try:
-            st.session_state.df_devices.to_excel("dados_consumo_mic.xlsx", index=False)
-            st.sidebar.success("Dados salvos com sucesso!")
-        except Exception as e:
-            st.sidebar.error(f"Erro ao salvar: {e}")
-    st.download_button(
-        "⬇ Baixar CSV",
-        st.session_state.df_devices.to_csv(index=False).encode("utf-8"),
-        f"goodwe_{date.today()}.csv",
-        "text/csv"
-    )
+        if not st.session_state.df_devices.empty:
+            try:
+                st.session_state.df_devices.to_excel("dados_consumo_mic.xlsx", index=False)
+                st.sidebar.success("Dados salvos com sucesso!")
+            except Exception as e:
+                st.sidebar.error(f"Erro ao salvar: {e}")
+        else:
+            st.sidebar.warning("Nenhum dado para salvar.")
+    
+    # Botão de download - com verificação de segurança
+    if not st.session_state.df_devices.empty:
+        csv_data = st.session_state.df_devices.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇ Baixar CSV",
+            csv_data,
+            f"goodwe_{date.today()}.csv",
+            "text/csv"
+        )
+    else:
+        st.sidebar.info("Nenhum dado disponível para download")
 
     st.markdown("---")
     st.header("Gerenciamento de Dispositivos")
 
-    pending_calls = get_pending_device_calls()
+    # Registro manual
+    with st.expander("🛠️ Registrar dispositivo manualmente"):
+        device_id_manual = st.text_input("ID do dispositivo (manual)")
+        nome_aparelho_manual = st.text_input("Nome do Aparelho (manual)")
+        prioridade_manual = st.selectbox("Ordem de Prioridade (manual)", ["Máxima","Moderada","Mínima"], key="prioridade_manual")
+        nome_conectado_manual = st.text_input("Nome do Dispositivo Conectado (manual)")
+        modelo_dispositivo_manual = st.text_input("Modelo do Dispositivo (manual)")
 
-    if pending_calls:
-        st.subheader("Chamados Pendentes")
-        selected_device_id = st.selectbox("Selecione um dispositivo para registrar:", pending_calls)
+        if st.button("Registrar Manualmente"):
+            if device_id_manual and nome_aparelho_manual:
+                try:
+                    register_new_device(
+                        device_id=device_id_manual,
+                        nome_aparelho=nome_aparelho_manual,
+                        prioridade=prioridade_manual,
+                        nome_conectado=nome_conectado_manual,
+                        modelo_dispositivo=modelo_dispositivo_manual
+                    )
+                except Exception as e:
+                    st.error(f"Erro ao registrar dispositivo manualmente: {e}")
+            else:
+                st.error("ID e Nome do aparelho são obrigatórios para registro manual.")
 
-        with st.form("form_register_device"):
-            st.write(f"Registrando dispositivo com ID: **{selected_device_id}**")
-            nome_aparelho = st.text_input("Nome do Aparelho (obrigatório)", key=f"nome_aparelho_{selected_device_id}")
-            prioridade = st.selectbox("Ordem de Prioridade", ["Máxima", "Moderada", "Mínima"], key=f"prioridade_{selected_device_id}")
-            nome_conectado = st.text_input("Nome do Dispositivo Conectado (opcional)", key=f"nome_conectado_{selected_device_id}")
-            modelo_dispositivo = st.text_input("Modelo do Dispositivo (opcional)", key=f"modelo_dispositivo_{selected_device_id}")
+# -------------------- Chamados pendentes --------------------
+pending_calls = get_pending_device_calls()
+if pending_calls:
+    st.subheader("Chamados Pendentes")
+    selected_device_id = st.selectbox("Selecione um dispositivo para registrar:", pending_calls)
+    with st.form("form_register_device"):
+        st.write(f"Registrando dispositivo com ID: **{selected_device_id}**")
+        nome_aparelho = st.text_input("Nome do Aparelho (obrigatório)", key=f"nome_aparelho_{selected_device_id}")
+        prioridade = st.selectbox("Ordem de Prioridade", ["Máxima","Moderada","Mínima"], key=f"prioridade_{selected_device_id}")
+        nome_conectado = st.text_input("Nome do Dispositivo Conectado (opcional)", key=f"nome_conectado_{selected_device_id}")
+        modelo_dispositivo = st.text_input("Modelo do Dispositivo (opcional)", key=f"modelo_dispositivo_{selected_device_id}")
 
-            submitted = st.form_submit_button("Registrar Dispositivo")
-            if submitted:
-                if nome_aparelho:
-                    try:
-                        register_new_device(selected_device_id, nome_aparelho, prioridade, nome_conectado, modelo_dispositivo)
-                        # substitui st.experimental_rerun() por st.rerun() para compatibilidade
-                        st.rerun()  # Recarrega para atualizar a lista de chamados e dispositivos
-                    except Exception as e:
-                        st.error(f"Erro ao registrar dispositivo: {e}")
-                else:
-                    st.error("O nome do aparelho é obrigatório.")
-    else:
-        st.info("Nenhum chamado de dispositivo pendente.")
+        submitted = st.form_submit_button("Registrar Dispositivo")
+        if submitted:
+            if nome_aparelho:
+                try:
+                    register_new_device(selected_device_id, nome_aparelho, prioridade, nome_conectado, modelo_dispositivo)
+                except Exception as e:
+                    st.error(f"Erro ao registrar dispositivo: {e}")
+            else:
+                st.error("O nome do aparelho é obrigatório.")
+else:
+    st.info("Nenhum chamado de dispositivo pendente.")
 
 # -------------------- KPIs --------------------
-col1, col2, col3, col4 = st.columns(4)
-# Proteções caso os dados estejam vazios
+col1,col2,col3,col4 = st.columns(4)
 try:
-    tension_mean = st.session_state.df_devices['Voltage'].mean()
-    current_sum = st.session_state.df_devices['Current'].sum()
-    power_sum = st.session_state.df_devices['Power'].sum()
-    energy_sum = st.session_state.df_devices['Energy'].sum()
+    tension_mean = st.session_state.df_devices['Voltage'].mean() if not st.session_state.df_devices.empty else 0.0
+    current_sum = st.session_state.df_devices['Current'].sum() if not st.session_state.df_devices.empty else 0.0
+    power_sum = st.session_state.df_devices['Power'].sum() if not st.session_state.df_devices.empty else 0.0
+    energy_sum = st.session_state.df_devices['Energy'].sum() if not st.session_state.df_devices.empty else 0.0
 except Exception:
-    tension_mean = 0.0
-    current_sum = 0.0
-    power_sum = 0.0
-    energy_sum = 0.0
+    tension_mean=current_sum=power_sum=energy_sum=0.0
 
 col1.metric("Tensão média (V)", f"{tension_mean:.2f}")
 col2.metric("Corrente total (A)", f"{current_sum:.2f}")
@@ -331,51 +338,62 @@ col3.metric("Potência total (W)", f"{power_sum:.2f}")
 col4.metric("Energia total (kWh)", f"{energy_sum:.3f}")
 
 # -------------------- Gráficos --------------------
-left, right = st.columns(2)
+left,right = st.columns(2)
 with left:
     try:
-        st.plotly_chart(px.bar(st.session_state.df_devices, x="Dispositivo", y="Power", color="Dispositivo", title="Potência (W)"), use_container_width=True)
-    except Exception as e:
-        st.info("Gráfico de potência indisponível: verifique colunas.")
+        if not st.session_state.df_devices.empty:
+            st.plotly_chart(px.bar(st.session_state.df_devices, x="Dispositivo", y="Power", color="Dispositivo", title="Potência (W)"), use_container_width=True)
+        else:
+            st.info("Nenhum dado disponível para gráfico de potência.")
+    except Exception:
+        st.info("Gráfico de potência indisponível.")
 with right:
     try:
-        st.plotly_chart(px.bar(st.session_state.df_devices, x="Dispositivo", y="Energy", color="Dispositivo", title="Energia (kWh)"), use_container_width=True)
-    except Exception as e:
-        st.info("Gráfico de energia indisponível: verifique colunas.")
+        if not st.session_state.df_devices.empty:
+            st.plotly_chart(px.bar(st.session_state.df_devices, x="Dispositivo", y="Energy", color="Dispositivo", title="Energia (kWh)"), use_container_width=True)
+        else:
+            st.info("Nenhum dado disponível para gráfico de energia.")
+    except Exception:
+        st.info("Gráfico de energia indisponível.")
 
 # -------------------- Tabela --------------------
 with st.expander("📊 Ver tabela completa"):
-    df_display = st.session_state.df_devices.copy()
-    df_display["time"] = pd.to_datetime(df_display["time"], errors="coerce")
-    df_display["time"] = df_display["time"].dt.strftime("%Y-%m-%d %H:%M")
-    st.dataframe(df_display, width="stretch", hide_index=True)
+    if not st.session_state.df_devices.empty:
+        df_display = st.session_state.df_devices.copy()
+        df_display["time"] = pd.to_datetime(df_display["time"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+        st.dataframe(df_display, width="stretch", hide_index=True)
+    else:
+        st.info("Nenhum dado disponível para exibição.")
 
 # -------------------- Gemini: Alertas --------------------
 st.markdown("---")
 st.header("💬 Alertas e recomendações do Gemini")
 if st.button("Gerar alertas e recomendações"):
-    contexto = gerar_contexto_resumido(st.session_state.df_devices)
-    prompt = f"Analise os dispositivos:\n{contexto}\n\nForneça alertas e recomendações para economizar energia."
-    try:
-        if llm:
-            resposta = llm.generate_content(prompt)
-            texto_resposta = resposta.text
-        else:
-            texto_resposta = "Gemini não está configurado (GEMINI_API_KEY ausente)."
-    except Exception as e:
-        texto_resposta = f"Erro ao gerar resposta do Gemini: {e}"
+    if not st.session_state.df_devices.empty:
+        contexto = gerar_contexto_resumido(st.session_state.df_devices)
+        prompt = f"Analise os dispositivos:\n{contexto}\n\nForneça alertas e recomendações para economizar energia."
+        try:
+            if llm:
+                resposta = llm.generate_content(prompt)
+                texto_resposta = resposta.text
+            else:
+                texto_resposta = "Gemini não está configurado (GEMINI_API_KEY ausente)."
+        except Exception as e:
+            texto_resposta = f"Erro ao gerar resposta do Gemini: {e}"
 
-    # Geração de áudio (TTS)
-    try:
-        tts = gTTS(texto_resposta, lang="pt")
-        audio_buffer = io.BytesIO()
-        tts.write_to_fp(audio_buffer)
-        audio_buffer.seek(0)
-        st.audio(audio_buffer, format="audio/mp3")
-    except Exception as e:
-        st.warning(f"Não foi possível gerar áudio: {e}")
+        # Geração de áudio (TTS)
+        try:
+            tts = gTTS(texto_resposta, lang="pt")
+            audio_buffer = io.BytesIO()
+            tts.write_to_fp(audio_buffer)
+            audio_buffer.seek(0)
+            st.audio(audio_buffer, format="audio/mp3")
+        except Exception as e:
+            st.warning(f"Não foi possível gerar áudio: {e}")
 
-    st.markdown(f"**Alertas e recomendações:** {texto_resposta}")
+        st.markdown(f"**Alertas e recomendações:** {texto_resposta}")
+    else:
+        st.warning("Nenhum dado disponível para análise.")
 
 # -------------------- Gemini: Perguntas Texto/Voz --------------------
 st.markdown("---")
@@ -405,35 +423,38 @@ elif pergunta_texto:
     st.write(f"**Você escreveu:** {pergunta_usuario}")
 
 if pergunta_usuario:
-    contexto = gerar_contexto_resumido(st.session_state.df_devices)
-    prompt = f"Considere os dispositivos:\n{contexto}\n\nPergunta: {pergunta_usuario}"
-    try:
-        if llm:
-            resposta = llm.generate_content(prompt)
-            texto_resposta = resposta.text
-        else:
-            texto_resposta = "Gemini não está configurado (GEMINI_API_KEY ausente)."
-    except Exception as e:
-        texto_resposta = f"Erro ao consultar Gemini: {e}"
+    if not st.session_state.df_devices.empty:
+        contexto = gerar_contexto_resumido(st.session_state.df_devices)
+        prompt = f"Considere os dispositivos:\n{contexto}\n\nPergunta: {pergunta_usuario}"
+        try:
+            if llm:
+                resposta = llm.generate_content(prompt)
+                texto_resposta = resposta.text
+            else:
+                texto_resposta = "Gemini não está configurado (GEMINI_API_KEY ausente)."
+        except Exception as e:
+            texto_resposta = f"Erro ao consultar Gemini: {e}"
 
-    # TTS e saída de áudio
-    try:
-        tts = gTTS(texto_resposta, lang="pt")
-        audio_out = io.BytesIO()
-        tts.write_to_fp(audio_out)
-        audio_out.seek(0)
-        st.audio(audio_out, format="audio/mp3")
-    except Exception as e:
-        st.warning(f"Não foi possível gerar áudio: {e}")
+        # TTS e saída de áudio
+        try:
+            tts = gTTS(texto_resposta, lang="pt")
+            audio_out = io.BytesIO()
+            tts.write_to_fp(audio_out)
+            audio_out.seek(0)
+            st.audio(audio_out, format="audio/mp3")
+        except Exception as e:
+            st.warning(f"Não foi possível gerar áudio: {e}")
 
-    st.markdown(f"**Resposta do Gemini:** {texto_resposta}")
+        st.markdown(f"**Resposta do Gemini:** {texto_resposta}")
+    else:
+        st.warning("Nenhum dado disponível para consulta.")
 
 # -------------------- Gráfico histórico (agora real) --------------------
 st.markdown("---")
 st.header("📈 Histórico geral de energia consumida (últimos registros)")
 
 try:
-    dispositivos = st.session_state.df_devices['Device_ID'].unique()
+    dispositivos = st.session_state.df_devices['Device_ID'].unique() if not st.session_state.df_devices.empty else []
 except Exception:
     dispositivos = []
 
@@ -470,7 +491,7 @@ if df_historico.empty:
     dias = pd.date_range(start=date.today().replace(day=1), periods=30)
     df_historico = pd.DataFrame()
     try:
-        dispositivos_nomes = st.session_state.df_devices['Dispositivo'].unique()
+        dispositivos_nomes = st.session_state.df_devices['Dispositivo'].unique() if not st.session_state.df_devices.empty else []
     except Exception:
         dispositivos_nomes = []
     for disp in dispositivos_nomes:
