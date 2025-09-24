@@ -62,10 +62,16 @@ void sendDeviceCall() {
 
   https.addHeader("Content-Type", "application/json");
 
-  // JSON para o chamado
-  StaticJsonDocument<128> doc;
-  doc["timestamp"] = millis();
-  doc["status"] = "pending_registration";
+  // JSON inicial com campos vazios
+  StaticJsonDocument<256> doc;
+  doc["Device_ID"]   = deviceId;
+  doc["Device_Name"] = "";       // vazio para preencher no site
+  doc["Priority"]    = "";       // vazio
+  doc["Model"]       = "";       // vazio
+  doc["Nickname"]    = "";       // vazio
+  doc["status"]      = "pending_registration";
+  doc["timestamp"]   = millis();
+
   String payload;
   serializeJson(doc, payload);
 
@@ -173,7 +179,6 @@ void loop() {
   simulaSensorHall(corrente, potencia);
 
   // Energia acumulada (kWh): P (W) * tempo (h) / 1000
-  // Nota: Simplificado para intervalo de 1s (DELTA_T_S = 1.0)
   energia_kwh += (potencia / 1000.0) * (DELTA_T_S / 3600.0); // kW * h
 
   float frequencia = 60.0;
