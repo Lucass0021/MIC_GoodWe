@@ -28,12 +28,18 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# Função para chamar o Gemini
+# ----------------------------
+# Memória simples (chat em sessão)
+# ----------------------------
+chat_history = []  # Vai guardar mensagens do usuário e IA
+
+# Função para chamar o Gemini com contexto
 def call_gemini(user_text: str) -> str:
+    # Adiciona a fala do usuário ao histórico
+    chat_history.append({"role": "user", "parts": [{"text": user_text}]})
+
     payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": user_text}]}
-        ]
+        "contents": chat_history
     }
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=7)
@@ -45,6 +51,9 @@ def call_gemini(user_text: str) -> str:
                 text = parts[0].get("text", "") if parts else "Texto não encontrado"
             else:
                 text = "Texto não encontrado"
+
+            # Salva resposta da IA no histórico também
+            chat_history.append({"role": "model", "parts": [{"text": text}]})
             return text
         else:
             logger.error(f"Erro na API Gemini: {response.status_code} {response.text}")
@@ -62,7 +71,9 @@ def get_initial_prompt() -> str:
         logger.warning("prompt.txt não encontrado. Usando prompt padrão.")
         return "Você será minha assistente de I.A. Vamos interagir conforme eu orientar."
 
+# ----------------------------
 # Handlers da Alexa
+# ----------------------------
 class LaunchRequestHandler(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return ask_utils.is_request_type("LaunchRequest")(handler_input)
