@@ -1,0 +1,40 @@
+# 🎯 Streamlit & Interface
+streamlit>=1.28.0
+streamlit-option-menu>=0.3.0
+
+# 🔥 Firebase
+firebase-admin>=6.2.0
+requests>=2.31.0
+
+# 📊 Data & Analysis
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.15.0
+
+# 🔌 Tuya IoT
+tuya-iot-py-sdk>=0.6.0
+
+# 🔧 Utilities
+python-dotenv>=1.0.0
+openpyxl>=3.1.0
+
+# 🗓️ Date/Time
+python-dateutil>=2.8.0
+
+# 🤖 Cypher/AI
+requests>=2.31.0
+python-dotenv>=1.0.0
+google-generativeai>=0.8.0
+firebase-admin>=6.2.0
+
+'''
+COMO INSTALAR:
+
+# Navegar até a pasta do projeto
+cd projeto_monitoramento
+
+# Instalar todas as dependências
+pip install -r requirements.txt
+
+# Ou se quiser instalar uma por uma:
+pip install streamlit firebase-admin pandas numpy plotly requests python-dotenv tuya-iot-py-sdk openpyxl google-generativeai
