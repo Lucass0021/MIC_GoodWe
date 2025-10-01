@@ -11,17 +11,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # -------------------- Carregar variáveis de ambiente --------------------
-# ✅ CORREÇÃO: Carregar do .env na raiz
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
 
 GEN_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# ✅ DEBUG: Verificar se carregou corretamente
-print(f"🔍 DEBUG - GEMINI_API_KEY: {GEN_API_KEY}")
-print(f"🔍 DEBUG - .env path: {env_path}")
-print(f"🔍 DEBUG - Current dir: {os.getcwd()}")
-
+# Configurar Gemini se disponível
 if GEN_API_KEY and GEN_API_KEY.startswith("AIza"):
     try:
         genai.configure(api_key=GEN_API_KEY)
@@ -31,47 +26,46 @@ if GEN_API_KEY and GEN_API_KEY.startswith("AIza"):
         logger.error(f"❌ Erro ao configurar Gemini: {e}")
         GEMINI_ACTIVE = False
 else:
-    logger.warning("🔶 Gemini não configurado - modo mock ativado")
+    logger.warning("🔶 Gemini não configurado")
     GEMINI_ACTIVE = False
 
-# -------------------- Firebase com Admin SDK --------------------
-def initialize_firebase():
-    """Inicializa Firebase Admin SDK"""
+# -------------------- Firebase com Fallback --------------------
+def initialize_firebase_safe():
+    """Inicializa Firebase com tratamento de erro"""
     try:
-        # ✅ USA O MESMO ARQUIVO QUE JÁ FUNCIONA
+        if firebase_admin._apps:
+            return db.reference()
+            
         cred_path = os.path.join(os.path.dirname(__file__), '../assets/mic-9d88e-firebase-adminsdk-fbsvc-b5729e6f68.json')
         
         if not os.path.exists(cred_path):
-            logger.error(f"❌ Arquivo de credenciais não encontrado: {cred_path}")
+            logger.warning("❌ Arquivo de credenciais não encontrado")
             return None
             
         cred = credentials.Certificate(cred_path)
         
-        if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://mic-9d88e-default-rtdb.firebaseio.com/'
-            })
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': 'https://mic-9d88e-default-rtdb.firebaseio.com/'
+        })
         
         logger.info("✅ Firebase Admin SDK inicializado!")
         return db.reference()
+        
     except Exception as e:
         logger.error(f"❌ Erro ao inicializar Firebase: {e}")
         return None
 
 def fetch_devices_data():
-    """Busca todos os dispositivos e seus dados de consumo"""
+    """Busca dados com fallback seguro"""
     try:
-        ref = initialize_firebase()
+        ref = initialize_firebase_safe()
         if not ref:
-            logger.warning("🔶 Firebase não disponível - usando dados mock")
-            return gerar_dados_mock()
+            return generate_mock_devices_data()
         
-        # Buscar dados das tomadas
         snapshot = ref.child('tomadas').get()
         
         if not snapshot or not isinstance(snapshot, dict):
-            logger.warning("⚠ Nenhum dado encontrado no Firebase")
-            return gerar_dados_mock()
+            return generate_mock_devices_data()
         
         devices = []
         for dev_id, values in snapshot.items():
@@ -97,10 +91,10 @@ def fetch_devices_data():
         
     except Exception as e:
         logger.error(f"❌ Erro ao buscar dispositivos: {e}")
-        return gerar_dados_mock()
+        return generate_mock_devices_data()
 
-def gerar_dados_mock():
-    """Gera dados mock para teste"""
+def generate_mock_devices_data():
+    """Gera dados mock"""
     return [
         {
             "Device_ID": "mock_secador",
