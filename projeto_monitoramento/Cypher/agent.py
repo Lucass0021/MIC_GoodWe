@@ -30,6 +30,33 @@ else:
     logger.warning("🔶 Gemini não configurado")
     GEMINI_ACTIVE = False
 
+# -------------------- Sistema de Histórico com Fallback --------------------
+HISTORICO_FILE = os.path.join(os.path.dirname(__file__), 'historico_conversas.json')
+
+def salvar_historico_local(conversas):
+    """Salva o histórico localmente em arquivo JSON"""
+    try:
+        with open(HISTORICO_FILE, 'w', encoding='utf-8') as f:
+            json.dump(conversas, f, ensure_ascii=False, indent=2)
+        logger.info("✅ Histórico salvo localmente")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Erro ao salvar histórico local: {e}")
+        return False
+
+def carregar_historico_local():
+    """Carrega o histórico do arquivo local"""
+    try:
+        if os.path.exists(HISTORICO_FILE):
+            with open(HISTORICO_FILE, 'r', encoding='utf-8') as f:
+                conversas = json.load(f)
+            logger.info(f"✅ {len(conversas)} conversas carregadas do arquivo local")
+            return conversas
+        return []
+    except Exception as e:
+        logger.error(f"❌ Erro ao carregar histórico local: {e}")
+        return []
+
 # -------------------- Firebase com Fallback --------------------
 def initialize_firebase_safe():
     """Inicializa Firebase com tratamento de erro"""
@@ -121,71 +148,112 @@ def generate_mock_devices_data():
 
 # -------------------- Histórico de Perguntas e Respostas --------------------
 def salvar_conversa(pergunta, resposta, dispositivos_analisados=None):
-    """Salva a conversa no Firebase"""
+    """Salva a conversa (Firebase com fallback para local)"""
+    conversa = {
+        "pergunta": pergunta,
+        "resposta": resposta,
+        "dispositivos_analisados": dispositivos_analisados or [],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "gemini_utilizado": GEMINI_ACTIVE
+    }
+    
+    # Tentar salvar no Firebase primeiro
+    firebase_success = False
     try:
         ref = initialize_firebase_safe()
-        if not ref:
-            return False
+        if ref:
+            ref.child('conversas_cypher').push(conversa)
+            logger.info("✅ Conversa salva no Firebase!")
+            firebase_success = True
+    except Exception as e:
+        logger.warning(f"⚠️  Falha ao salvar no Firebase: {e}")
+    
+    # Fallback para arquivo local
+    if not firebase_success:
+        try:
+            # Carregar histórico existente
+            historico_existente = carregar_historico_local()
             
-        conversa = {
-            "pergunta": pergunta,
-            "resposta": resposta,
-            "dispositivos_analisados": dispositivos_analisados or [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "gemini_utilizado": GEMINI_ACTIVE
-        }
-        
-        ref.child('conversas_cypher').push(conversa)
-        logger.info("✅ Conversa salva no histórico")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ Erro ao salvar conversa: {e}")
-        return False
+            # Adicionar nova conversa (limitar a 50 conversas)
+            historico_existente.append(conversa)
+            if len(historico_existente) > 50:
+                historico_existente = historico_existente[-50:]
+            
+            # Salvar de volta
+            if salvar_historico_local(historico_existente):
+                logger.info("✅ Conversa salva localmente (fallback)")
+            else:
+                logger.error("❌ Falha ao salvar conversa localmente")
+                
+        except Exception as e:
+            logger.error(f"❌ Erro crítico ao salvar conversa: {e}")
 
-def carregar_historico_conversas(limite=10):
-    """Carrega o histórico de conversas"""
+def carregar_historico_conversas(limite=20):
+    """Carrega o histórico de conversas (Firebase com fallback para local)"""
+    conversas = []
+    
+    # Tentar carregar do Firebase primeiro
     try:
         ref = initialize_firebase_safe()
-        if not ref:
-            return []
-        
-        snapshot = ref.child('conversas_cypher').order_by_key().limit_to_last(limite).get()
-        
-        conversas = []
-        if snapshot and isinstance(snapshot, dict):
-            for key, value in snapshot.items():
-                if isinstance(value, dict):
-                    conversas.append({
-                        "id": key,
-                        "pergunta": value.get("pergunta", ""),
-                        "resposta": value.get("resposta", ""),
-                        "timestamp": value.get("timestamp", ""),
-                        "gemini_utilizado": value.get("gemini_utilizado", False)
-                    })
-        
-        # Ordenar por timestamp (mais recente primeiro)
-        conversas.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
-        return conversas
+        if ref:
+            snapshot = ref.child('conversas_cypher').order_by_key().limit_to_last(limite).get()
+            
+            if snapshot and isinstance(snapshot, dict):
+                for key, value in snapshot.items():
+                    if isinstance(value, dict):
+                        conversas.append({
+                            "id": key,
+                            "pergunta": value.get("pergunta", ""),
+                            "resposta": value.get("resposta", ""),
+                            "timestamp": value.get("timestamp", ""),
+                            "gemini_utilizado": value.get("gemini_utilizado", False)
+                        })
+                
+                logger.info(f"✅ {len(conversas)} conversas carregadas do Firebase")
+                # Ordenar por timestamp (mais recente primeiro)
+                conversas.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+                return conversas[:limite]
+                
+    except Exception as e:
+        logger.warning(f"⚠️  Falha ao carregar do Firebase: {e}")
+    
+    # Fallback para arquivo local
+    try:
+        conversas_locais = carregar_historico_local()
+        # Ordenar por timestamp e limitar
+        conversas_locais.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        logger.info(f"✅ {len(conversas_locais)} conversas carregadas localmente (fallback)")
+        return conversas_locais[:limite]
         
     except Exception as e:
-        logger.error(f"❌ Erro ao carregar histórico: {e}")
-        return []
+        logger.error(f"❌ Erro ao carregar histórico local: {e}")
+    
+    return []
 
 def limpar_historico_conversas():
     """Limpa todo o histórico de conversas"""
+    success_count = 0
+    
+    # Limpar Firebase
     try:
         ref = initialize_firebase_safe()
-        if not ref:
-            return False
-            
-        ref.child('conversas_cypher').delete()
-        logger.info("✅ Histórico de conversas limpo")
-        return True
-        
+        if ref:
+            ref.child('conversas_cypher').delete()
+            logger.info("✅ Histórico do Firebase limpo")
+            success_count += 1
     except Exception as e:
-        logger.error(f"❌ Erro ao limpar histórico: {e}")
-        return False
+        logger.warning(f"⚠️  Falha ao limpar Firebase: {e}")
+    
+    # Limpar arquivo local
+    try:
+        if os.path.exists(HISTORICO_FILE):
+            os.remove(HISTORICO_FILE)
+            logger.info("✅ Histórico local limpo")
+            success_count += 1
+    except Exception as e:
+        logger.error(f"❌ Erro ao limpar histórico local: {e}")
+    
+    return success_count > 0
 
 # -------------------- Agente Gemini --------------------
 def carregar_prompt():
@@ -251,7 +319,7 @@ ANÁLISE E RECOMENDAÇÕES:"""
                 logger.error(f"❌ Erro ao gerar recomendações com Gemini: {e}")
                 resposta = gerar_recomendacoes_mock(devices, pergunta_personalizada)
     
-    # Salvar no histórico
+    # Salvar no histórico (agora com fallback)
     pergunta_salvar = pergunta_personalizada if pergunta_personalizada else "Análise geral de eficiência energética"
     dispositivos_info = [{"Device_ID": d["Device_ID"], "Power": d["Power"], "Energy": d["Energy"]} for d in devices]
     salvar_conversa(pergunta_salvar, resposta, dispositivos_info)

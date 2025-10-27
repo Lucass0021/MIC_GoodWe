@@ -210,49 +210,49 @@ with tab2:
             else:
                 st.error("❌ Erro ao limpar histórico")
         
-        # Exibir conversas
+        # Exibir conversas com tratamento seguro
         for i, conversa in enumerate(historico_conversas):
-            with st.expander(f"📅 {conversa['timestamp'][:16].replace('T', ' ')} - {conversa['pergunta'][:50]}...", key=f"conv_{i}"):
-                col_a, col_b = st.columns([1, 4])
+            # Garantir que todos os campos existam com valores padrão
+            timestamp = conversa.get('timestamp', '')
+            pergunta = conversa.get('pergunta', 'Pergunta não disponível')
+            resposta = conversa.get('resposta', 'Resposta não disponível')
+            gemini_utilizado = conversa.get('gemini_utilizado', False)
+            
+            # Formatar timestamp de forma segura
+            timestamp_formatado = "Data desconhecida"
+            if timestamp:
+                try:
+                    if 'T' in timestamp:
+                        timestamp_formatado = timestamp[:16].replace('T', ' ')
+                    else:
+                        timestamp_formatado = timestamp[:16]
+                except:
+                    timestamp_formatado = "Data inválida"
+            
+            # Criar título simples e seguro
+            titulo_safe = f"Consulta {i+1} - {timestamp_formatado}"
+            
+            # Usar uma key numérica simples
+            with st.expander(titulo_safe, key=f"hist_{i}"):
+                # Layout em colunas
+                col_info, col_conteudo = st.columns([1, 4])
                 
-                with col_a:
-                    st.markdown(f"""
-                        <div style='
-                            background: #2A2A2A;
-                            padding: 0.5rem;
-                            border-radius: 6px;
-                            text-align: center;
-                            border: 1px solid #333333;
-                        '>
-                            <small style='color: #B0B0B0;'>
-                            {conversa['timestamp'][:16].replace('T', ' ')}<br>
-                            {'🤖 Gemini' if conversa.get('gemini_utilizado', False) else '📋 Mock'}
-                            </small>
-                        </div>
-                    """, unsafe_allow_html=True)
+                with col_info:
+                    # Informações da conversa
+                    st.markdown("**📅 Data:**")
+                    st.write(timestamp_formatado)
+                    st.markdown("**🤖 Fonte:**")
+                    st.write("Gemini" if gemini_utilizado else "Mock")
                 
-                with col_b:
-                    st.markdown(f"""
-                        <div style='
-                            background: #1E1E1E;
-                            padding: 1rem;
-                            border-radius: 8px;
-                            margin-bottom: 0.5rem;
-                            border-left: 3px solid #E60012;
-                        '>
-                            <strong style='color: #E60012;'>❓ Pergunta:</strong><br>
-                            <span style='color: #B0B0B0;'>{conversa['pergunta']}</span>
-                        </div>
-                        <div style='
-                            background: #1E1E1E;
-                            padding: 1rem;
-                            border-radius: 8px;
-                            border-left: 3px solid #00E676;
-                        '>
-                            <strong style='color: #00E676;'>💡 Resposta:</strong><br>
-                            <span style='color: #B0B0B0; white-space: pre-line;'>{conversa['resposta']}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
+                with col_conteudo:
+                    # Pergunta
+                    st.markdown("**❓ Pergunta:**")
+                    st.info(pergunta)
+                    
+                    # Resposta
+                    st.markdown("**💡 Resposta:**")
+                    st.success(resposta)
+                    
     else:
         st.info("ℹ️ Nenhuma conversa encontrada no histórico. Faça sua primeira consulta na aba 'Nova Consulta'.")
 
