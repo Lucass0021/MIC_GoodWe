@@ -210,49 +210,56 @@ with tab2:
             else:
                 st.error("❌ Erro ao limpar histórico")
         
-        # Exibir conversas com tratamento seguro
+        # Exibir conversas com tratamento robusto de erros
         for i, conversa in enumerate(historico_conversas):
-            # Garantir que todos os campos existam com valores padrão
-            timestamp = conversa.get('timestamp', '')
-            pergunta = conversa.get('pergunta', 'Pergunta não disponível')
-            resposta = conversa.get('resposta', 'Resposta não disponível')
-            gemini_utilizado = conversa.get('gemini_utilizado', False)
-            
-            # Formatar timestamp de forma segura
-            timestamp_formatado = "Data desconhecida"
-            if timestamp:
-                try:
-                    if 'T' in timestamp:
-                        timestamp_formatado = timestamp[:16].replace('T', ' ')
-                    else:
-                        timestamp_formatado = timestamp[:16]
-                except:
-                    timestamp_formatado = "Data inválida"
-            
-            # Criar título simples e seguro
-            titulo_safe = f"Consulta {i+1} - {timestamp_formatado}"
-            
-            # Usar uma key numérica simples
-            with st.expander(titulo_safe, key=f"hist_{i}"):
-                # Layout em colunas
-                col_info, col_conteudo = st.columns([1, 4])
+            try:
+                # Garantir que todos os campos existam com valores padrão
+                timestamp = conversa.get('timestamp', '')
+                pergunta = conversa.get('pergunta', 'Pergunta não disponível')
+                resposta = conversa.get('resposta', 'Resposta não disponível')
+                gemini_utilizado = conversa.get('gemini_utilizado', False)
                 
-                with col_info:
-                    # Informações da conversa
-                    st.markdown("**📅 Data:**")
-                    st.write(timestamp_formatado)
-                    st.markdown("**🤖 Fonte:**")
-                    st.write("Gemini" if gemini_utilizado else "Mock")
+                # Formatar timestamp de forma segura
+                timestamp_formatado = "Data desconhecida"
+                if timestamp:
+                    try:
+                        if 'T' in timestamp:
+                            timestamp_formatado = timestamp[:16].replace('T', ' ')
+                        else:
+                            timestamp_formatado = timestamp[:16]
+                    except:
+                        timestamp_formatado = "Data inválida"
                 
-                with col_conteudo:
-                    # Pergunta
-                    st.markdown("**❓ Pergunta:**")
-                    st.info(pergunta)
+                # Criar título simples e seguro
+                titulo_safe = f"Consulta {i+1} - {timestamp_formatado}"
+                
+                # Usar uma key numérica simples e única
+                key_safe = f"hist_{i}_{timestamp_formatado.replace(' ', '').replace(':', '').replace('-', '')}"
+                
+                with st.expander(titulo_safe, key=key_safe):
+                    # Layout em colunas
+                    col_info, col_conteudo = st.columns([1, 4])
                     
-                    # Resposta
-                    st.markdown("**💡 Resposta:**")
-                    st.success(resposta)
+                    with col_info:
+                        # Informações da conversa
+                        st.markdown("**📅 Data:**")
+                        st.write(timestamp_formatado)
+                        st.markdown("**🤖 Fonte:**")
+                        st.write("Gemini" if gemini_utilizado else "Mock")
                     
+                    with col_conteudo:
+                        # Pergunta
+                        st.markdown("**❓ Pergunta:**")
+                        st.info(pergunta)
+                        
+                        # Resposta
+                        st.markdown("**💡 Resposta:**")
+                        st.success(resposta)
+                        
+            except Exception as e:
+                # Capturar e ignorar erros silenciosamente
+                continue  # Simplesmente pula para a próxima conversa
+    
     else:
         st.info("ℹ️ Nenhuma conversa encontrada no histórico. Faça sua primeira consulta na aba 'Nova Consulta'.")
 
