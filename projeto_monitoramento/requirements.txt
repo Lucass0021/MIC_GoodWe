@@ -38,3 +38,4 @@ pip install -r requirements.txt
 
 # Ou se quiser instalar uma por uma:
 pip install streamlit firebase-admin pandas numpy plotly requests python-dotenv tuya-iot-py-sdk openpyxl google-generativeai
+'''
