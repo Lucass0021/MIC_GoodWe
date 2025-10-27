@@ -10,7 +10,12 @@ from components.device_cards import render_device_cards
 from components.kpi_cards import render_kpi_cards
 from components.charts import render_charts
 from services.data_service import DataService
-from Cypher.agent import gerar_recomendacoes, fetch_devices_data
+from Cypher.agent import (
+    gerar_recomendacoes, 
+    fetch_devices_data, 
+    carregar_historico_conversas, 
+    limpar_historico_conversas
+)
 
 # Configuração
 st.set_page_config(page_title="Smart Energy Monitor", layout="wide", page_icon="⚡")
@@ -122,34 +127,134 @@ if mostrar_tabela:
 st.markdown("---")
 st.header("🤖 Assistente de Eficiência Energética")
 
-if st.button("🎯 Obter Recomendações Inteligentes", key="btn_recomendacoes"):
-    with st.spinner("🔍 Analisando consumo dos dispositivos..."):
-        try:
-            # Buscar dados reais do Firebase
-            dispositivos_reais = fetch_devices_data()
-            
-            # Gerar recomendações
-            recomendacoes = gerar_recomendacoes(dispositivos_reais)
-            
-            st.success("✅ Análise concluída!")
-            
-            # Exibir recomendações em um container estilizado
-            st.markdown(f"""
-                <div style='
-                    background: linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%);
-                    padding: 1.5rem;
-                    border-radius: 10px;
-                    border-left: 5px solid #E60012;
-                    margin: 1rem 0;
-                    border: 1px solid #333333;
-                '>
-                    <h4 style='color: #E60012; margin-top: 0;'>💡 Recomendações do Especialista</h4>
-                    <div style='color: #B0B0B0; line-height: 1.6; white-space: pre-line;'>{recomendacoes}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"❌ Erro ao gerar recomendações: {e}")
+# Abas para organizar as funcionalidades do Cypher
+tab1, tab2 = st.tabs(["💬 Nova Consulta", "📚 Histórico de Conversas"])
+
+with tab1:
+    # Campo para pergunta personalizada
+    pergunta_personalizada = st.text_area(
+        "💭 Faça uma pergunta específica sobre eficiência energética:",
+        placeholder="Ex: Como posso economizar energia com meus dispositivos atuais? Quais dispositivos consomem mais? Dicas de segurança energética...",
+        height=80,
+        key="pergunta_input"
+    )
+    
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        if st.button("🎯 Obter Recomendações Inteligentes", key="btn_recomendacoes", use_container_width=True):
+            with st.spinner("🔍 Analisando consumo dos dispositivos..."):
+                try:
+                    # Buscar dados reais do Firebase
+                    dispositivos_reais = fetch_devices_data()
+                    
+                    # Gerar recomendações (com ou sem pergunta personalizada)
+                    recomendacoes = gerar_recomendacoes(
+                        dispositivos_reais, 
+                        pergunta_personalizada if pergunta_personalizada.strip() else None
+                    )
+                    
+                    st.success("✅ Análise concluída!")
+                    
+                    # Exibir recomendações em um container estilizado
+                    st.markdown(f"""
+                        <div style='
+                            background: linear-gradient(135deg, #1E1E1E 0%, #2A2A2A 100%);
+                            padding: 1.5rem;
+                            border-radius: 10px;
+                            border-left: 5px solid #E60012;
+                            margin: 1rem 0;
+                            border: 1px solid #333333;
+                        '>
+                            <h4 style='color: #E60012; margin-top: 0;'>💡 Recomendações do Especialista</h4>
+                            <div style='color: #B0B0B0; line-height: 1.6; white-space: pre-line;'>{recomendacoes}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                except Exception as e:
+                    st.error(f"❌ Erro ao gerar recomendações: {e}")
+
+with tab2:
+    st.subheader("📚 Histórico de Consultas")
+    
+    # Carregar histórico
+    historico_conversas = carregar_historico_conversas(limite=20)
+    
+    if historico_conversas:
+        # Estatísticas do histórico
+        total_consultas = len(historico_conversas)
+        consultas_gemini = sum(1 for c in historico_conversas if c.get('gemini_utilizado', False))
+        
+        st.markdown(f"""
+            <div style='
+                background: #1E1E1E;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-bottom: 1rem;
+                border: 1px solid #333333;
+            '>
+                <strong style='color: #E60012;'>📊 Estatísticas do Histórico:</strong> 
+                <span style='color: #B0B0B0;'>
+                {total_consultas} consultas • 
+                {consultas_gemini} com Gemini • 
+                {total_consultas - consultas_gemini} com respostas mock
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Botão para limpar histórico
+        if st.button("🗑️ Limpar Histórico Completo", key="btn_limpar_historico"):
+            if limpar_historico_conversas():
+                st.success("✅ Histórico limpo com sucesso!")
+                st.rerun()
+            else:
+                st.error("❌ Erro ao limpar histórico")
+        
+        # Exibir conversas
+        for i, conversa in enumerate(historico_conversas):
+            with st.expander(f"📅 {conversa['timestamp'][:16].replace('T', ' ')} - {conversa['pergunta'][:50]}...", key=f"conv_{i}"):
+                col_a, col_b = st.columns([1, 4])
+                
+                with col_a:
+                    st.markdown(f"""
+                        <div style='
+                            background: #2A2A2A;
+                            padding: 0.5rem;
+                            border-radius: 6px;
+                            text-align: center;
+                            border: 1px solid #333333;
+                        '>
+                            <small style='color: #B0B0B0;'>
+                            {conversa['timestamp'][:16].replace('T', ' ')}<br>
+                            {'🤖 Gemini' if conversa.get('gemini_utilizado', False) else '📋 Mock'}
+                            </small>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                with col_b:
+                    st.markdown(f"""
+                        <div style='
+                            background: #1E1E1E;
+                            padding: 1rem;
+                            border-radius: 8px;
+                            margin-bottom: 0.5rem;
+                            border-left: 3px solid #E60012;
+                        '>
+                            <strong style='color: #E60012;'>❓ Pergunta:</strong><br>
+                            <span style='color: #B0B0B0;'>{conversa['pergunta']}</span>
+                        </div>
+                        <div style='
+                            background: #1E1E1E;
+                            padding: 1rem;
+                            border-radius: 8px;
+                            border-left: 3px solid #00E676;
+                        '>
+                            <strong style='color: #00E676;'>💡 Resposta:</strong><br>
+                            <span style='color: #B0B0B0; white-space: pre-line;'>{conversa['resposta']}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+    else:
+        st.info("ℹ️ Nenhuma conversa encontrada no histórico. Faça sua primeira consulta na aba 'Nova Consulta'.")
 
 # Footer
 st.markdown("---")
